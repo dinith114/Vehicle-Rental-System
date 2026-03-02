@@ -1,0 +1,374 @@
+openapi: 3.0.3
+info:
+  title: Payment Service API
+  description: |
+    Payment microservice for Orchid Vehicle Rental System.
+    
+    ## Features
+    - Payment processing with Stripe integration
+    - Multiple payment types (Advance Deposit, Rental Balance, Damage)
+    - Refund processing
+    - Role-based access control
+    
+    ## Authentication
+    Uses header-based role authentication:
+    - `X-User-Role`: User role (OWNER, BOOKING_CASHIER, CUSTOMER)
+    - `X-User-Id`: User identifier for customer-specific operations
+    
+    ## Inter-service Communication
+    - **Booking Service**: Validates booking information
+    - **Notification Service**: Sends payment confirmations
+    
+  version: 1.0.0
+  contact:
+    name: Orchid Vehicle Rental Team
+    email: support@orchid-rental.com
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: http://localhost:8084
+    description: Local Development Server
+  - url: https://payment-service.azurecontainerapps.io
+    description: Production Server (Azure Container Apps)
+
+tags:
+  - name: Payment
+    description: Payment management operations
+  - name: Stripe
+    description: Stripe payment gateway operations
+
+paths:
+  /api/payments:
+    get:
+      tags:
+        - Payment
+      summary: Get all payments
+      description: Retrieves all payments. Customers can only see their own payments.
+      parameters:
+        - $ref: '#/components/parameters/XUserRole'
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: List of payments
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+        '403':
+          description: Access denied
+
+    post:
+      tags:
+        - Payment
+      summary: Create a new payment
+      description: Creates a new payment record. Requires BOOKING_CASHIER or OWNER role.
+      parameters:
+        - $ref: '#/components/parameters/XUserRole'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentDTO'
+      responses:
+        '201':
+          description: Payment created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Invalid input
+        '403':
+          description: Access denied
+
+  /api/payments/{id}:
+    get:
+      tags:
+        - Payment
+      summary: Get payment by ID
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Payment ID
+        - $ref: '#/components/parameters/XUserRole'
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: Payment details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '404':
+          description: Payment not found
+        '403':
+          description: Access denied
+
+  /api/payments/{id}/status:
+    put:
+      tags:
+        - Payment
+      summary: Update payment status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XUserRole'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [PENDING, SUCCESS, FAILED, REFUNDED]
+      responses:
+        '200':
+          description: Payment status updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '404':
+          description: Payment not found
+        '403':
+          description: Access denied
+
+  /api/payments/{id}/refund:
+    post:
+      tags:
+        - Payment
+      summary: Refund a payment
+      description: Processes a refund for a successful payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XUserRole'
+      responses:
+        '200':
+          description: Payment refunded successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+        '400':
+          description: Payment cannot be refunded
+        '404':
+          description: Payment not found
+        '403':
+          description: Access denied
+
+  /api/payments/booking/{bookingId}:
+    get:
+      tags:
+        - Payment
+      summary: Get payments by booking ID
+      parameters:
+        - name: bookingId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of payments for the booking
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+  /api/payments/customer/{customerId}:
+    get:
+      tags:
+        - Payment
+      summary: Get payments by customer ID
+      parameters:
+        - name: customerId
+          in: path
+          required: true
+          schema:
+            type: string
+        - $ref: '#/components/parameters/XUserRole'
+        - $ref: '#/components/parameters/XUserId'
+      responses:
+        '200':
+          description: List of payments for the customer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+        '403':
+          description: Access denied
+
+  /api/payments/create-intent:
+    post:
+      tags:
+        - Stripe
+      summary: Create Stripe payment intent
+      description: Creates a Stripe payment intent for card payments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PaymentIntentRequest'
+      responses:
+        '200':
+          description: Payment intent created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentIntentResponse'
+
+  /api/payments/confirm:
+    post:
+      tags:
+        - Stripe
+      summary: Confirm payment
+      description: Confirms a payment after successful Stripe transaction
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                paymentId:
+                  type: string
+                paymentIntentId:
+                  type: string
+      responses:
+        '200':
+          description: Payment confirmed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payment'
+
+components:
+  parameters:
+    XUserRole:
+      name: X-User-Role
+      in: header
+      required: false
+      schema:
+        type: string
+        enum: [OWNER, BOOKING_CASHIER, CUSTOMER]
+      description: User role for authorization
+
+    XUserId:
+      name: X-User-Id
+      in: header
+      required: false
+      schema:
+        type: string
+      description: User ID for customer-specific filtering
+
+  schemas:
+    Payment:
+      type: object
+      properties:
+        paymentId:
+          type: string
+          description: Unique payment identifier
+        bookingId:
+          type: string
+          description: Associated booking ID
+        customerId:
+          type: string
+          description: Customer who made the payment
+        amount:
+          type: number
+          format: double
+          description: Payment amount
+        paymentStatus:
+          type: string
+          enum: [PENDING, SUCCESS, FAILED, REFUNDED]
+        paymentDate:
+          type: string
+          format: date-time
+        paymentType:
+          type: string
+          enum: [ADVANCE_DEPOSIT, RENTAL_BALANCE, DAMAGE, LATE_FEE]
+        stripePaymentIntentId:
+          type: string
+          nullable: true
+        stage:
+          type: string
+          enum: [ADVANCE, FINAL]
+
+    PaymentDTO:
+      type: object
+      required:
+        - bookingId
+        - amount
+        - paymentType
+      properties:
+        bookingId:
+          type: string
+        customerId:
+          type: string
+        amount:
+          type: number
+          format: double
+          minimum: 0.01
+        paymentType:
+          type: string
+          enum: [ADVANCE_DEPOSIT, RENTAL_BALANCE, DAMAGE, LATE_FEE]
+        stage:
+          type: string
+          enum: [ADVANCE, FINAL]
+
+    PaymentIntentRequest:
+      type: object
+      required:
+        - amount
+        - bookingId
+      properties:
+        amount:
+          type: number
+          description: Amount in currency units
+        bookingId:
+          type: string
+        customerId:
+          type: string
+        paymentType:
+          type: string
+          default: RENTAL_BALANCE
+        stage:
+          type: string
+          default: FINAL
+        currency:
+          type: string
+          default: lkr
+
+    PaymentIntentResponse:
+      type: object
+      properties:
+        paymentIntentId:
+          type: string
+        publishableKey:
+          type: string
+        clientSecret:
+          type: string
+        paymentId:
+          type: string

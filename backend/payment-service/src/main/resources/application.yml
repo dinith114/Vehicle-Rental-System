@@ -6,8 +6,9 @@ spring:
     name: payment-service
   data:
     mongodb:
-      uri: ${SPRING_DATA_MONGODB_URI:mongodb://localhost:27017/payment-db}
+      uri: ${SPRING_DATA_MONGODB_URI:mongodb+srv://admin:1234@rental.z6qzg6i.mongodb.net/payment-db?retryWrites=true&w=majority&appName=rental}
 
+# Service URLs for inter-service communication
 booking:
   service:
     url: ${BOOKING_SERVICE_URL:http://localhost:8083}
@@ -16,10 +17,30 @@ notification:
   service:
     url: ${NOTIFICATION_SERVICE_URL:http://localhost:8086}
 
+# Stripe Payment Gateway Configuration
 stripe:
   secret-key: ${STRIPE_SECRET_KEY:your_stripe_secret_key_here}
   publishable-key: ${STRIPE_PUBLISHABLE_KEY:your_stripe_publishable_key_here}
 
+# Role-based Access Control
 access-control:
   payment-manage: BOOKING_CASHIER,OWNER
   payment-view: BOOKING_CASHIER,OWNER
+
+# Actuator endpoints for health checks and monitoring
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: when-authorized
+
+# OpenAPI/Swagger Configuration
+springdoc:
+  api-docs:
+    path: /api-docs
+  swagger-ui:
+    path: /swagger-ui.html
+    operationsSorter: method

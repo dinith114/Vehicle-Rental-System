@@ -93,8 +93,8 @@ services:
       - "8084:8084"
     environment:
       - SPRING_DATA_MONGODB_URI=mongodb+srv://admin:1234@rental.z6qzg6i.mongodb.net/payment-db?retryWrites=true&w=majority&appName=rental
-      - BOOKING_SERVICE_URL=http://booking-service:8083
-      - NOTIFICATION_SERVICE_URL=http://notification-service:8086
+      - BOOKING_SERVICE_URL=http://api-gateway:8080
+      - NOTIFICATION_SERVICE_URL=http://api-gateway:8080
     dns:
       - 8.8.8.8
       - 8.8.4.4
